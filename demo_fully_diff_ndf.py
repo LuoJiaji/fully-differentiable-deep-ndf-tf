@@ -1,49 +1,27 @@
 #!/usr/bin/python
 """
 # Fully Differentiable Deep Neural Decision Forest
-
 [![DOI](https://zenodo.org/badge/20267/chrischoy/fully-differentiable-deep-ndf-tf.svg)](https://zenodo.org/badge/latestdoi/20267/chrischoy/fully-differentiable-deep-ndf-tf)
-
 This repository contains a simple modification of the deep-neural decision
 forest [Kontschieder et al.] in TensorFlow. The modification allows joint
 optimization of the decision nodes and leaf nodes which theoretically should speed up the training
 (haven't verified).
-
-
 ## Motivation:
-
 Deep Neural Deicision Forest, ICCV 2015, proposed an interesting way to incorporate a decision forest into a neural network.
-
 The authors proposed incorporating the terminal nodes of a decision forest as static probability distributions and routing probabilities using sigmoid functions. The final loss is defined as the usual cross entropy between ground truth and weighted average of the terminal probabilities (weights being the routing probabilities).
-
 As there are two trainable parameters, the authors used alternating optimization. They first fixed the terminal node probabilities and trained the base network (routing probabilities), then, fixed the network and optimized the terminal nodes. Such alternating optimization is usually slower than joint optimization since variables that are not being optimized slow down the optimization of the other variable.
-
 However, if we parametrize the terminal nodes using a parametric probability distribution, we can jointly train both terminal and decision nodes, and theoretically, can speed up the convergence.
-
 This code is just a proof-of-concept that
-
 1. One can train both decision nodes and leaf nodes $\pi$ jointly using parametric formulation of leaf (terminal) nodes.
-
 2. It is easy to implement such idea in a symbolic math library.
-
-
 ## Formulation
-
 The leaf node probability $p \in \Delta^{n-1}$ can be parametrized using an $n$ dimensional vector $w_{leaf}$ $\exists w_{leaf}$ s.t. $p = softmax(w_{leaf})$. Thus, we can compute the gradient of $L$ w.r.t $w_{leaf}$ as well and can jointly optimize the terminal nodes as well.
-
 ## Experiment
-
 I used a simple (3 convolution + 2 fc) network for this experiment. On the MNIST, it reaches 99.1% after 10 epochs.
-
 ## Slides
-
 [SDL Reading Group Slides](https://docs.google.com/presentation/d/1Ze7BAiWbMPyF0ax36D-aK00VfaGMGvvgD_XuANQW1gU/edit?usp=sharing)
-
-
 ## Reference
-
 [Kontschieder et al.] Deep Neural Decision Forests, ICCV 2015
-
 The following is the expected output: the number of epoch and corresponding test accuracy.
 ```
 0 0.955829326923
@@ -147,31 +125,21 @@ The following is the expected output: the number of epoch and corresponding test
 98 0.995292467949
 99 0.995392628205
 ```
-
 ## Slides
-
 [SDL Reading Group Slides](https://docs.google.com/presentation/d/1Ze7BAiWbMPyF0ax36D-aK00VfaGMGvvgD_XuANQW1gU/edit?usp=sharing)
-
 ## References
 [Kontschieder et al.] Deep Neural Decision Forests, ICCV 2015
-
-
 ## License
-
 The MIT License (MIT)
-
 Copyright (c) 2016 Christopher B. Choy (chrischoy@ai.stanford.edu)
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
-
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
-
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -203,16 +171,13 @@ def init_prob_weights(shape, minval=-5, maxval=5):
 def model(X, w, w2, w3, w4_e, w_d_e, w_l_e, p_keep_conv, p_keep_hidden):
     """
     Create a forest and return the neural decision forest outputs:
-
         decision_p_e: decision node routing probability for all ensemble
             If we number all nodes in the tree sequentially from top to bottom,
             left to right, decision_p contains
             [d(0), d(1), d(2), ..., d(2^n - 2)] where d(1) is the probability
             of going left at the root node, d(2) is that of the left child of
             the root node.
-
             decision_p_e is the concatenation of all tree decision_p's
-
         leaf_p_e: terminal node probability distributions for all ensemble. The
             indexing is the same as that of decision_p_e.
     """
@@ -294,10 +259,10 @@ flat_decision_p_e = []
 for decision_p in decision_p_e:
     # Compute the complement of d, which is 1 - d
     # where d is the sigmoid of fully connected output
-    decision_p_comp = tf.sub(tf.ones_like(decision_p), decision_p)
+    decision_p_comp = tf.subtract(tf.ones_like(decision_p), decision_p)
 
     # Concatenate both d, 1-d
-    decision_p_pack = tf.pack([decision_p, decision_p_comp])
+    decision_p_pack = tf.stack([decision_p, decision_p_comp])
 
     # Flatten/vectorize the decision probabilities for efficient indexing
     flat_decision_p = tf.reshape(decision_p_pack, [-1])
@@ -337,7 +302,7 @@ out_repeat = N_BATCH
 # Let N_BATCH * N_LEAF be N_D. flat_decision_p[N_D] will return 1-d of the
 # first root node in the first tree.
 batch_complement_indices = \
-    np.array([[0] * in_repeat, [N_BATCH * N_LEAF] * in_repeat]
+    np.array([[0] * int(in_repeat), [N_BATCH * N_LEAF] * int(in_repeat)]
              * out_repeat).reshape(N_BATCH, N_LEAF)
 
 # First define the routing probabilities d for root nodes
@@ -350,7 +315,7 @@ for i, flat_decision_p in enumerate(flat_decision_p_e):
     mu_e.append(mu)
 
 # from the second layer to the last layer, we make the decision nodes
-for d in xrange(1, DEPTH + 1):
+for d in range(1, DEPTH + 1):
     indices = tf.range(2 ** d, 2 ** (d + 1)) - 1
     tile_indices = tf.reshape(tf.tile(tf.expand_dims(indices, 1),
                                       [1, 2 ** (DEPTH - d + 1)]), [1, -1])
@@ -361,12 +326,12 @@ for d in xrange(1, DEPTH + 1):
 
     # Again define the indices that picks d and 1-d for the node
     batch_complement_indices = \
-        np.array([[0] * in_repeat, [N_BATCH * N_LEAF] * in_repeat]
+        np.array([[0] * int(in_repeat), [N_BATCH * N_LEAF] * int(in_repeat)]
                  * out_repeat).reshape(N_BATCH, N_LEAF)
 
     mu_e_update = []
     for mu, flat_decision_p in zip(mu_e, flat_decision_p_e):
-        mu = tf.mul(mu, tf.gather(flat_decision_p,
+        mu = tf.multiply(mu, tf.gather(flat_decision_p,
                                   tf.add(batch_indices, batch_complement_indices)))
         mu_e_update.append(mu)
 
@@ -379,11 +344,11 @@ py_x_e = []
 for mu, leaf_p in zip(mu_e, leaf_p_e):
     # average all the leaf p
     py_x_tree = tf.reduce_mean(
-        tf.mul(tf.tile(tf.expand_dims(mu, 2), [1, 1, N_LABEL]),
+        tf.multiply(tf.tile(tf.expand_dims(mu, 2), [1, 1, N_LABEL]),
                tf.tile(tf.expand_dims(leaf_p, 0), [N_BATCH, 1, 1])), 1)
     py_x_e.append(py_x_tree)
 
-py_x_e = tf.pack(py_x_e)
+py_x_e = tf.stack(py_x_e)
 py_x = tf.reduce_mean(py_x_e, 0)
 
 ##################################################
@@ -391,14 +356,14 @@ py_x = tf.reduce_mean(py_x_e, 0)
 ##################################################
 
 # cross entropy loss
-cost = tf.reduce_mean(-tf.mul(tf.log(py_x), Y))
+cost = tf.reduce_mean(-tf.multiply(tf.log(py_x), Y))
 
 # cost = tf.reduce_mean(tf.nn.cross_entropy_with_logits(py_x, Y))
 train_step = tf.train.RMSPropOptimizer(0.001, 0.9).minimize(cost)
 predict = tf.argmax(py_x, 1)
 
 sess = tf.Session()
-sess.run(tf.initialize_all_variables())
+sess.run(tf.global_variables_initializer())
 
 for i in range(100):
     # One epoch
@@ -408,9 +373,10 @@ for i in range(100):
 
     # Result on the test set
     results = []
-    for start, end in zip(range(0, len(teX), N_BATCH), range(N_BARCH, len(teX), N_BATCH)):
+    for start, end in zip(range(0, len(teX), N_BATCH), range(N_BATCH, len(teX), N_BATCH)):
         results.extend(np.argmax(teY[start:end], axis=1) ==
             sess.run(predict, feed_dict={X: teX[start:end], p_keep_conv: 1.0,
                                          p_keep_hidden: 1.0}))
+        print(results)
 
-    print 'Epoch: %d, Test Accuracy: %f' % (i + 1, np.mean(results))
+    print('Epoch: %d, Test Accuracy: %f' % (i + 1, np.mean(results)))
